@@ -1,0 +1,151 @@
+<!DOCTYPE html> 
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat en vivo</title>
+    <style>
+        /*Estilos generales de la página*/
+        body{
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #f9f9f9;
+        }
+        #chat{
+            width: 300px;
+            margin: 20px auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background: #fff;
+            border-radius: 8px;
+        }
+        #mensajes{
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+            padding: 5px;
+            text-align: left;
+        }
+        input, button{
+            padding: 5px;
+            margin: 3px;
+        }
+        #usuario{
+            width: 90%;
+            margin-bottom: 10px;
+        }
+        #mensaje{
+            width: 70%;
+        }
+        #desconectar{
+            background-color: rgb(215, 115, 79);
+            
+        }
+        #conectarse{
+            background-color: greenyellow;
+        }
+        #envio, #desconectar, #conectarse {
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        button:hover{
+            background-color: bisque;
+        }
+    </style>
+</head> 
+<body>
+    <h2>Chat en Vivo</h2>
+    <div id="chat"> <!--Creamos la cajita del chat-->
+        <input id="usuario" placeholder="Escribe tu nombre" type="text" />
+        <button id="conectarse" onclick="conectarWebSocket()">Conectarse</button> <!--agregamos boton para que el usuario se conecte al chat-->
+
+        <!-- Lista de usuarios -->
+        <div id="usuariosConectados" style="text-align: left; font-size: 14px; margin-bottom: 10px;"></div>
+        <!--este apartado es para los mensajes y botones del chat-->
+        <div id="mensajes"></div>
+        <input id="mensaje" placeholder="Escribe tu mensaje" type="text" />
+        <button id="envio" onclick="enviarMensaje()">Enviar</button>
+        <button id="desconectar" onclick="desconectarUsuario()">Salir</button>
+    </div>
+
+    <script>
+        // Abrimos las variables para dar funcionalidad
+        let socket;
+        let usuario = "";
+        // Esta función sirve para conectar al webSocket
+        function conectarWebSocket() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                Swal.fire("✅ Ya estás conectado.");
+                return;
+            }
+
+            usuario = document.getElementById("usuario").value.trim() || "Anónimo"; // por si el usuario no ingresa nombre, por defecto será anónimo.
+            socket = new WebSocket("ws://localhost:3000"); // indicamos l puerto a ocupar
+            // Este nos permite conectarmos al puerto y nos manda mensaje en consola
+            socket.onopen = () => {
+                console.log("✅ Conectado al servidor WebSocket");
+                socket.send(JSON.stringify({ tipo: "nuevo-usuario", nombre: usuario }));
+            };
+            // aquí, en caso de no estar conectado o nos marque algún error nos mostrará en terminal el error
+            socket.onerror = (error) => {
+                console.error("❌ Error de WebSocket:", error);
+            };
+            // Cuando el usuario cierre, mostrara que cerró sesión
+            socket.onclose = () => {
+                console.warn("⚠️ Conexión cerrada");
+            };
+            // Esto nos indicará que el mensaje fue enviado al otro usuario
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log("Mensaje recibido:", data); // Para debugging
+                // Ponemos las distintas reestricciones con un if
+                if (data.tipo === "mensaje") {
+                    const div = document.getElementById("mensajes");
+                    div.innerHTML += `<p><strong style="color: green;">👽${data.nombre}</strong>: ${data.texto}</p>`;
+                    div.scrollTop = div.scrollHeight;
+                }
+                // Hacemos lo mismo para los usuarios
+                if (data.tipo === "usuarios") {
+                    const listaDiv = document.getElementById("usuariosConectados");
+                    // Agregamos que los queremos ver en forma de lista
+                    listaDiv.innerHTML = "<strong>👥 Usuarios:</strong><ul style='list-style: none; padding: 0;'>";
+                    // Agregamos un forEach para recorrer todos los usuarios y agregarles el icono correspondiente, usando un ternario 
+                    data.todos.forEach((nombre) => {
+                        const conectado = data.conectados.includes(nombre);
+                        const color = conectado ? "green" : "red";
+                        const icono = conectado ? "🟢" : "🔴";
+
+                        listaDiv.innerHTML += `<li style="color: ${color};">${icono} ${nombre}</li>`;
+                    });
+
+                    listaDiv.innerHTML += "</ul>";
+                }
+            };
+        }
+         // damos vida al boton conectar usuario
+        function desconectarUsuario() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.close();  // Esto dispara socket.onclose automáticamente
+                Swal.fire("👻 Te has desconectado del chat.");
+            }
+        }
+        // Agregamos la funcion que le dara vida al boton enviar
+        function enviarMensaje() {
+            const mensaje = document.getElementById("mensaje").value;
+
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                Swal.fire("⚠️ No estás conectado al servidor todavía.");
+                return;
+            }
+
+            if (mensaje.trim() !== "") {
+                socket.send(JSON.stringify({ tipo: "mensaje", texto: mensaje }));
+                document.getElementById("mensaje").value = "";
+            }
+        }
+       
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script><!--opcional para las alert-->
+</body>
+</html>
